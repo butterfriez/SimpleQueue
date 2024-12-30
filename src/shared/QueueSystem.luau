@@ -72,6 +72,10 @@ function QueueSystem.Start(self: QueueSystem)
 			local success, message = pcall(function()
 				return TeleportService:TeleportAsync(self.PlaceID, self.Players)
 			end) -- unsure if this works, haven't tested it
+
+			if not success then
+				print(message)
+			end
 		end
 
 		self:Reset()
