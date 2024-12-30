@@ -1,0 +1,9 @@
+[package]
+name = "radra/simplequeue"
+version = "0.1.0"
+registry = "https://github.com/UpliftGames/wally-index"
+realm = "shared"
+
+[dependencies]
+Janitor = "howmanysmall/janitor@^1.17.0"
+Signal = "lucasmzreal/fastsignal@10.3.2"

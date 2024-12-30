@@ -1,41 +1,35 @@
 --!strict
 
 --[[
-    TODO:
-    Implement PlayerAdded signal
-    Implement PlayerRemoved signal
-    Change OnCountdownChanged to signal
+	TODO:
+	Change method of listening for player adding/removing (Touched TouchEnded fires multiple times, probably due to character's multiple parts)
 ]]
 
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
+local Janitor = require(ReplicatedStorage.Packages.Janitor)
+local FastSignal = require(ReplicatedStorage.Packages.Signal)
 type QueueSystem = {
 	Players: { Player },
 	Cooldown: number,
 	CurrentCountdown: number,
 	Part: Part,
+	Janitor: Janitor.Janitor,
 
-	Connections: { RBXScriptSignal },
-	OnCountdownChanged: { () -> () },
-	PlayerAdded: { (player: Player) -> () },
-	PlayerRemoved: { (player: Player) -> () },
+	OnCountdownChanged: FastSignal.ScriptSignal,
+	PlayerAdded: FastSignal.ScriptSignal,
+	PlayerRemoved: FastSignal.ScriptSignal,
 
 	new: (part: Part) -> QueueSystem,
 	Reset: (self: QueueSystem) -> (),
 	Start: (self: QueueSystem) -> (),
-	Stop: (self: QueueSystem) -> (),
-	CountdownChanged: (self: QueueSystem, callback: () -> ()) -> (),
+	Destroy: (self: QueueSystem) -> (),
 }
 
 local QueueSystem: QueueSystem = {} :: QueueSystem
 QueueSystem.__index = QueueSystem
-
-local function fireCountdownCallbacks(queue: QueueSystem)
-	for _, callback in next, queue.OnCountdownChanged do
-		callback()
-	end
-end
 
 function QueueSystem.new(part: Part): QueueSystem
 	local self = setmetatable({}, QueueSystem) :: QueueSystem
@@ -44,8 +38,15 @@ function QueueSystem.new(part: Part): QueueSystem
 	self.Cooldown = 10
 	self.CurrentCountdown = self.Cooldown
 	self.Part = part
-	self.Connections = {}
-	self.OnCountdownChanged = {}
+	self.Janitor = Janitor.new()
+
+	self.OnCountdownChanged = FastSignal.new()
+	self.PlayerAdded = FastSignal.new()
+	self.PlayerRemoved = FastSignal.new()
+
+	self.Janitor:Add(self.OnCountdownChanged, "Destroy")
+	self.Janitor:Add(self.PlayerAdded, "Destroy")
+	self.Janitor:Add(self.PlayerRemoved, "Destroy")
 
 	return self
 end
@@ -53,7 +54,7 @@ end
 function QueueSystem.Reset(self: QueueSystem)
 	table.clear(self.Players)
 	self.CurrentCountdown = self.Cooldown
-	fireCountdownCallbacks(self)
+	self.OnCountdownChanged:Fire(self.CurrentCountdown)
 end
 
 function QueueSystem.Start(self: QueueSystem)
@@ -63,66 +64,65 @@ function QueueSystem.Start(self: QueueSystem)
 		for _, player in next, self.Players do
 			print("Teleporting player: " .. player.Name)
 		end
+		self:Reset()
 	end
 
-	table.insert(
-		self.Connections,
+	self.Janitor:Add(
 		self.Part.Touched:Connect(function(otherPart)
 			local player = Players:GetPlayerFromCharacter(otherPart.Parent)
+			if not player then
+				return
+			end
+
 			local playerExist = table.find(self.Players, player)
 
-			if player and not playerExist then
+			if not playerExist then
 				table.insert(self.Players, player)
+				self.PlayerAdded:Fire(player)
 			end
-		end)
+		end),
+		"Disconnect"
 	)
 
-	table.insert(
-		self.Connections,
+	self.Janitor:Add(
 		self.Part.TouchEnded:Connect(function(otherPart)
 			local player = Players:GetPlayerFromCharacter(otherPart.Parent)
+			if not player then
+				return
+			end
+
 			local playerExist = table.find(self.Players, player)
 
-			if player and playerExist then
+			if playerExist then
 				table.remove(self.Players, playerExist)
+				self.PlayerRemoved:Fire(player)
 			end
-		end)
+		end),
+		"Disconnect"
 	)
 
-	table.insert(
-		self.Connections,
-		RunService.Stepped:Connect(function()
+	self.Janitor:Add(
+		RunService.PostSimulation:Connect(function()
 			local timePassed = os.clock()
 			if timePassed - currentTime >= 1 then
-				fireCountdownCallbacks(self)
+				self.OnCountdownChanged:Fire(self.CurrentCountdown)
 				if self.CurrentCountdown == 0 then
 					teleportPlayers()
-					self:Reset()
 				end
 
 				self.CurrentCountdown -= 1
 				currentTime = os.clock()
 			end
-		end)
+		end),
+		"Disconnect"
 	)
 end
 
-function QueueSystem.Stop(self: QueueSystem)
-	for _, connection in next, self.Connections do
-		connection:Disconnect()
+function QueueSystem.Destroy(self: QueueSystem)
+	if self.Janitor then
+		self.Janitor:Destroy()
+		self.Janitor = nil
 	end
-end
-
-function QueueSystem.CountdownChanged(self: QueueSystem, callback: () -> ())
-	table.insert(self.OnCountdownChanged, callback)
-end
-
-function QueueSystem.PlayerAdded(self: QueueSystem, callback: (player: Player) -> ())
-	table.insert(self.PlayerAdded, callback)
-end
-
-function QueueSystem.PlayerRemoved(self: QueueSystem, callback: (player: Player) -> ())
-	table.insert(self.PlayerRemoved, callback)
 end
 
 return table.freeze(QueueSystem)

@@ -7,7 +7,11 @@ local Queues = CollectionService:GetTagged("Queue")
 for _, instance in next, Queues do
 	local queue = QueueSystem.new(instance)
 	queue:Start()
-	queue:CountdownChanged(function()
-		print(queue.CurrentCountdown)
+
+	queue.OnCountdownChanged:Connect(function(Countdown)
+		if Countdown == 0 then
+			queue:Destroy()
+			print(queue)
+		end
 	end)
 end

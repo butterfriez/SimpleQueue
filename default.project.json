@@ -6,6 +6,9 @@
     "ReplicatedStorage": {
       "Shared": {
         "$path": "src/shared"
+      },
+      "Packages": {
+        "$path": "Packages"
       }
     },
 
@@ -54,7 +57,19 @@
         "$properties": {
           "Tags": [
             "Queue"
-          ]
+          ],
+          "Size": [
+            11,
+            6.7,
+            11
+          ],
+          "Position": [
+            0,
+            3.35,
+            0
+          ],
+          "Anchored": true,
+          "CanCollide": false
         }
       }
     },
