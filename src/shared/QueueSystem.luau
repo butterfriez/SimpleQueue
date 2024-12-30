@@ -8,6 +8,7 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local TeleportService = game:GetService("TeleportService")
 
 local Janitor = require(ReplicatedStorage.Packages.Janitor)
 local FastSignal = require(ReplicatedStorage.Packages.Signal)
@@ -16,6 +17,7 @@ type QueueSystem = {
 	Cooldown: number,
 	CurrentCountdown: number,
 	Part: Part,
+	PlaceID: number | string,
 	Janitor: Janitor.Janitor,
 
 	OnCountdownChanged: FastSignal.ScriptSignal,
@@ -31,13 +33,14 @@ type QueueSystem = {
 local QueueSystem: QueueSystem = {} :: QueueSystem
 QueueSystem.__index = QueueSystem
 
-function QueueSystem.new(part: Part): QueueSystem
+function QueueSystem.new(part: Part, placeID: number | string): QueueSystem
 	local self = setmetatable({}, QueueSystem) :: QueueSystem
 
 	self.Players = {}
 	self.Cooldown = 10
 	self.CurrentCountdown = self.Cooldown
 	self.Part = part
+	self.PlaceID = placeID
 	self.Janitor = Janitor.new()
 
 	self.OnCountdownChanged = FastSignal.new()
@@ -61,9 +64,16 @@ function QueueSystem.Start(self: QueueSystem)
 	local currentTime = os.clock()
 
 	local function teleportPlayers()
-		for _, player in next, self.Players do
-			print("Teleporting player: " .. player.Name)
+		if typeof(self.PlaceID) == "string" then
+			for _, player in next, self.Players do
+				print(player)
+			end
+		else
+			local success, message = pcall(function()
+				return TeleportService:TeleportAsync(self.PlaceID, self.Players)
+			end) -- unsure if this works, haven't tested it
 		end
+
 		self:Reset()
 	end
 
